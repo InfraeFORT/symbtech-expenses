@@ -1,0 +1,27 @@
+{
+  "name": "symbtech-expenses-ocr",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Service OCR de justificatifs (vision Claude) — cœur du tracker de dépenses Symbtech, instance séparée d'e-FORT.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "create-user": "node scripts/createUser.js",
+    "seed-ref": "node scripts/seedReferentials.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.106.0",
+    "@aws-sdk/client-s3": "^3.1075.0",
+    "@aws-sdk/s3-request-presigner": "^3.1075.0",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^9.7.2",
+    "multer": "^2.2.0",
+    "pdf-lib": "^1.17.1",
+    "sharp": "^0.33.5"
+  }
+}
