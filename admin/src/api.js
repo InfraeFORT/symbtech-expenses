@@ -246,3 +246,6 @@ export const updateSimulation = (id, b, t) => apiRequest('/simulations/' + id, {
 export const deleteSimulation = (id, t) => apiRequest('/simulations/' + id, { method: 'DELETE', token: t });
 export const simulationDefaults = (b, t) => apiRequest('/simulations/defaults', { method: 'POST', token: t, body: b });
 export const simulationPrefill = (b, t) => apiRequest('/simulations/prefill', { method: 'POST', token: t, body: b });
+
+// --- PAYE calcule (bareme MRA) ---
+export const computePaye = (b, t) => apiRequest('/payslips/compute-paye', { method: 'POST', token: t, body: b });

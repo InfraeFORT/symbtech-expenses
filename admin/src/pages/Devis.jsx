@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../auth';
 import {
   listResource, listProducts, listQuotes, createQuote, updateQuote,
-  issueQuote, setQuoteStatus, convertQuote, deleteQuote,
+  issueQuote, setQuoteStatus, convertQuote, deleteQuote, getCompanyLogoUrl,
 } from '../api';
 import Modal from '../components/Modal';
 
@@ -320,17 +320,27 @@ export default function Devis() {
         </Modal>
       )}
 
-      {printQ && <QuotePrint q={printQ} onClose={() => setPrintQ(null)} />}
+      {printQ && <QuotePrint q={printQ} companies={companies} token={token} onClose={() => setPrintQ(null)} />}
     </div>
   );
 }
 
-function QuotePrint({ q, onClose }) {
+function QuotePrint({ q, companies, token, onClose }) {
   const t = totals(q.lines);
   const cur = q.currency;
   const issuer = q.issuer || {};
   const client = q.client || {};
   const addr = (p) => [p.address1, p.address2, [p.postalCode, p.city].filter(Boolean).join(' '), p.country].filter(Boolean);
+  const [logoUrl, setLogoUrl] = useState(null);
+  useEffect(() => {
+    let on = true;
+    const c = (companies || []).find((x) => x.name === q.issuerCompany);
+    if (c && c._id && c.imageKey) {
+      getCompanyLogoUrl(c._id, token).then((r) => { if (on) setLogoUrl(r.url); }).catch(() => { if (on) setLogoUrl(null); });
+    } else { setLogoUrl(null); }
+    return () => { on = false; };
+  }, [companies]);
+
   return (
     <div className="print-overlay">
       <div className="print-toolbar no-print">
@@ -340,6 +350,7 @@ function QuotePrint({ q, onClose }) {
       <div className="invoice-print">
         <div className="inv-head">
           <div className="inv-issuer">
+            {logoUrl && <img src={logoUrl} alt="" className="inv-logo" style={{ maxHeight: 60, maxWidth: 200, objectFit: 'contain', display: 'block', marginBottom: 8 }} />}
             <div className="inv-name">{issuer.name || '—'}</div>
             {addr(issuer).map((l, i) => <div key={i}>{l}</div>)}
             {issuer.regNumber && <div>Reg. : {issuer.regNumber}</div>}

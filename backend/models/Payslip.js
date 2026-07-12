@@ -56,6 +56,10 @@ const PayslipSchema = new Schema({
   contributions: { type: [ContribSchema], default: [] },
 
   taxRate: { type: Number, default: 0 }, // taux de prélèvement à la source
+  taxMode: { type: String, enum: ['rate', 'amount'], default: 'rate' }, // 'amount' = PAYE calculé (barème)
+  taxFixedAmount: { type: Number, default: 0 }, // montant d'impôt retenu quand taxMode = 'amount'
+  edfReliefs: { type: Number, default: 0 }, // Maurice : abattements annuels EDF (personnes à charge…)
+  monthsPerYear: { type: Number, default: 12 }, // mensualités/an (13e mois…) pour annualiser
   expenseReimbursement: { type: Number, default: 0 }, // remboursements de frais (non soumis)
 
   grossTotal: { type: Number, default: 0 },

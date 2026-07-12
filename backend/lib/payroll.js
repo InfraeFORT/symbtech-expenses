@@ -83,7 +83,10 @@ function computeTotals(p) {
   const netBeforeTax = round(brut - totalEmployee);   // net à payer avant impôt (indicatif)
   const netSocial = netBeforeTax;                     // montant net social (indicatif)
   const taxRate = Number(p.taxRate) || 0;
-  const taxAmount = round(netBeforeTax * taxRate / 100); // prélèvement à la source (base indicative)
+  // Deux modes : 'rate' (taux × net avant impôt) ou 'amount' (montant calculé, ex. PAYE barème MRA).
+  const taxAmount = p.taxMode === 'amount'
+    ? round(Number(p.taxFixedAmount) || 0)
+    : round(netBeforeTax * taxRate / 100);
   const reimb = Number(p.expenseReimbursement) || 0;     // remboursements de frais (non soumis)
   const netPaid = round(netBeforeTax - taxAmount + reimb);
   return {
@@ -93,4 +96,20 @@ function computeTotals(p) {
   };
 }
 
-module.exports = { PMSS_DEFAULT, bases, defaultContributions, defaultContributionsMU, computeTotals, round };
+// PAYE Maurice — barème annuel MRA (0 % ≤ 500k · 10 % 500k–1M · 20 % au-delà), appliqué aux
+// émoluments annuels moins les abattements (EDF). Retenue mensuelle = impôt annuel / 12.
+// Note : à Maurice, les cotisations (CSG/NSF) ne sont PAS déductibles de l'assiette PAYE.
+function computePayeMU({ monthlyGross, monthsPerYear, reliefs, brackets }) {
+  const { progressive, defaultBrackets } = require('./tax');
+  const months = Number(monthsPerYear) > 0 ? Number(monthsPerYear) : 12;
+  const annualEmoluments = round((Number(monthlyGross) || 0) * months);
+  const annualReliefs = Math.max(0, Number(reliefs) || 0);
+  const annualChargeable = Math.max(0, round(annualEmoluments - annualReliefs));
+  const bands = (brackets && brackets.length) ? brackets : defaultBrackets('MU', 'employee');
+  const annualTax = progressive(annualChargeable, bands);
+  const monthlyTax = round(annualTax / 12);
+  const effectiveRate = annualEmoluments > 0 ? round((annualTax / annualEmoluments) * 100) : 0;
+  return { annualEmoluments, annualReliefs, annualChargeable, annualTax, monthlyTax, effectiveRate, brackets: bands };
+}
+
+module.exports = { PMSS_DEFAULT, bases, defaultContributions, defaultContributionsMU, computeTotals, computePayeMU, round };

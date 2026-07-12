@@ -103,13 +103,29 @@ router.post('/prefill', async (req, res) => {
       } catch (e) { /* */ }
       try {
         const Supplier = require('../models/Supplier');
-        const emps = (await Supplier.find({ isEmployee: true }).limit(500)).filter((x) => x.employment && Number(x.employment.monthlyGross) > 0);
+        // Salariés rattachés à CETTE société (employment.company). Repli : tous, si aucun rattachement saisi.
+        let emps = (await Supplier.find({ isEmployee: true, 'employment.company': company }).limit(500))
+          .filter((x) => x.employment && Number(x.employment.monthlyGross) > 0);
+        let scoped = true;
+        if (!emps.length) {
+          emps = (await Supplier.find({ isEmployee: true }).limit(500))
+            .filter((x) => x.employment && Number(x.employment.monthlyGross) > 0 && !x.employment.company);
+          scoped = false;
+        }
         if (emps.length) {
           const from7 = (periodFrom || '').slice(0, 7);
           const to7 = (periodTo || '').slice(0, 7);
           const months = monthsBetween(from7, to7) || 12;
-          const mass = emps.reduce((s, x) => s + (Number(x.employment.monthlyGross) || 0), 0) * months;
-          if (mass) lines.push({ label: `Masse salariale prévisionnelle (${emps.length} salarié(s), ${months} mois)`, type: 'charge', nature: 'forecast', amount: round(mass), note: 'Tous salariés — à ajuster selon la société' });
+          // mensualités contractuelles (13e mois…) prises en compte au prorata de la période
+          const mass = emps.reduce((s, x) => {
+            const m = Number(x.employment.monthsPerYear) > 0 ? Number(x.employment.monthsPerYear) : 12;
+            return s + (Number(x.employment.monthlyGross) || 0) * (m / 12);
+          }, 0) * months;
+          lines.push({
+            label: `Masse salariale prévisionnelle (${emps.length} salarié(s), ${months} mois)`,
+            type: 'charge', nature: 'forecast', amount: round(mass),
+            note: scoped ? `Salariés rattachés à ${company}` : 'Salariés sans société rattachée — à vérifier',
+          });
         }
       } catch (e) { /* */ }
     }

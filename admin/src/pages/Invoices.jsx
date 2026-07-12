@@ -7,7 +7,7 @@ import {
   listResource, listProducts, listInvoices, createInvoice, updateInvoice,
   issueInvoice, setInvoiceStatus, deleteInvoice, listAllOrders, getOrderPrefill,
   importInvoices, ocrInvoice, bulkDeleteInvoices, saveInvoiceMeta,
-  listCras, listQuotes,
+  listCras, listQuotes, getCompanyLogoUrl,
 } from '../api';
 import Modal from '../components/Modal';
 
@@ -586,17 +586,27 @@ export default function Invoices() {
         </Modal>
       )}
 
-      {printInv && <InvoicePrint inv={printInv} onClose={() => setPrintInv(null)} />}
+      {printInv && <InvoicePrint inv={printInv} companies={companies} token={token} onClose={() => setPrintInv(null)} />}
     </div>
   );
 }
 
-function InvoicePrint({ inv, onClose }) {
+function InvoicePrint({ inv, companies, token, onClose }) {
   const t = (inv.lines && inv.lines.length) ? totals(inv.lines) : { subtotal: inv.subtotal || 0, vatTotal: inv.vatTotal || 0, total: inv.total || 0 };
   const cur = inv.currency;
   const issuer = inv.issuer || {};
   const client = inv.client || {};
   const addr = (p) => [p.address1, p.address2, [p.postalCode, p.city].filter(Boolean).join(' '), p.country].filter(Boolean);
+  const [logoUrl, setLogoUrl] = useState(null);
+  useEffect(() => {
+    let on = true;
+    const c = (companies || []).find((x) => x.name === inv.issuerCompany);
+    if (c && c._id && c.imageKey) {
+      getCompanyLogoUrl(c._id, token).then((r) => { if (on) setLogoUrl(r.url); }).catch(() => { if (on) setLogoUrl(null); });
+    } else { setLogoUrl(null); }
+    return () => { on = false; };
+  }, [companies]);
+
   return (
     <div className="print-overlay">
       <div className="print-toolbar no-print">
@@ -606,6 +616,7 @@ function InvoicePrint({ inv, onClose }) {
       <div className="invoice-print">
         <div className="inv-head">
           <div className="inv-issuer">
+            {logoUrl && <img src={logoUrl} alt="" className="inv-logo" style={{ maxHeight: 60, maxWidth: 200, objectFit: 'contain', display: 'block', marginBottom: 8 }} />}
             <div className="inv-name">{issuer.name || '—'}</div>
             {addr(issuer).map((l, i) => <div key={i}>{l}</div>)}
             {issuer.regNumber && <div>Reg. : {issuer.regNumber}</div>}

@@ -3,6 +3,8 @@ import React from 'react';
 import ResourcePage from '../components/ResourcePage';
 import FieldList from '../components/FieldList';
 import Attachments from '../components/Attachments';
+import { useAuth } from '../auth';
+import { listResource } from '../api';
 
 const columns = [
   { key: 'name', label: 'Fournisseur' },
@@ -22,6 +24,9 @@ const emptyItem = {
 };
 
 function EmploymentBlock({ draft, set }) {
+  const { token } = useAuth();
+  const [companies, setCompanies] = React.useState([]);
+  React.useEffect(() => { listResource('companies', token).then((r) => setCompanies(r.items || [])).catch(() => {}); }, []);
   const emp = draft.employment || {};
   const setEmp = (k, v) => set('employment', { ...emp, [k]: v });
   const isMU = emp.country === 'MU';
@@ -43,6 +48,12 @@ function EmploymentBlock({ draft, set }) {
   return (
     <div className="fieldlist" style={{ marginTop: 8 }}>
       <div className="fieldlist-head"><span>Contrat & rémunération</span></div>
+      <div className="field"><label>Société employeuse</label>
+        <select value={emp.company || ''} onChange={(e) => setEmp('company', e.target.value)}>
+          <option value="">— choisir —</option>
+          {companies.map((c) => <option key={c._id} value={c.name}>{c.name}</option>)}
+        </select>
+      </div>
       <div className="grid2">
         <div className="field"><label>Pays / régime</label>
           <select value={emp.country || ''} onChange={(e) => setEmp('country', e.target.value)}>

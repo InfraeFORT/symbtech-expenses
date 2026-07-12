@@ -4,7 +4,7 @@ import { useAuth } from '../auth';
 import Modal from '../components/Modal';
 import {
   listResource, getCompanyLogoUrl,
-  listPayslips, getPayslip, createPayslip, updatePayslip, finalizePayslip, reopenPayslip, deletePayslip, defaultPayslipContributions,
+  listPayslips, getPayslip, createPayslip, updatePayslip, finalizePayslip, reopenPayslip, deletePayslip, defaultPayslipContributions, computePaye,
 } from '../api';
 
 const MONTHS = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
@@ -23,7 +23,7 @@ function totals(p) {
   const totalEmployee = r2(emp), totalEmployer = r2(er);
   const netBeforeTax = r2(brut - totalEmployee);
   const taxRate = Number(p.taxRate) || 0;
-  const taxAmount = r2(netBeforeTax * taxRate / 100);
+  const taxAmount = p.taxMode === 'amount' ? r2(Number(p.taxFixedAmount) || 0) : r2(netBeforeTax * taxRate / 100);
   const reimb = Number(p.expenseReimbursement) || 0;
   const netPaid = r2(netBeforeTax - taxAmount + reimb);
   return { grossTotal: brut, totalEmployee, totalEmployer, netBeforeTax, netSocial: netBeforeTax, taxAmount, netPaid, employerCost: r2(brut + totalEmployer) };
@@ -100,6 +100,18 @@ function Sheet({ token, companies, suppliers, initial, onBack }) {
   const [printing, setPrinting] = useState(false);
   const [empSup, setEmpSup] = useState('');
   const [logoUrl, setLogoUrl] = useState(null);
+  const [payeInfo, setPayeInfo] = useState(null);
+
+  const calcPaye = async () => {
+    setBusy(true);
+    try {
+      const gains = (p.gains || []).reduce((s, g) => s + (Number(g.amount) || 0), 0);
+      const monthlyGross = (Number(p.baseSalary) || 0) + gains;
+      const r = await computePaye({ monthlyGross, monthsPerYear: p.monthsPerYear || 12, reliefs: p.edfReliefs || 0 }, token);
+      setPayeInfo(r);
+      setP((x) => ({ ...x, taxMode: 'amount', taxFixedAmount: r.monthlyTax, taxRate: r.effectiveRate }));
+    } catch (e) { alert(e.message); } finally { setBusy(false); }
+  };
   const individuals = (suppliers || []).filter((s) => s.isIndividual);
 
   useEffect(() => {
@@ -158,6 +170,8 @@ function Sheet({ token, companies, suppliers, initial, onBack }) {
         currency,
         baseSalary: (isEmp && emp.monthlyGross) ? emp.monthlyGross : x.baseSalary,
         workedHours: (isEmp && emp.workedHours) ? emp.workedHours : x.workedHours,
+        monthsPerYear: (isEmp && emp.monthsPerYear) ? emp.monthsPerYear : x.monthsPerYear,
+        company: (isEmp && emp.company) ? emp.company : x.company,
         gains,
         employee: {
           ...x.employee,
@@ -396,9 +410,42 @@ function Sheet({ token, companies, suppliers, initial, onBack }) {
       <div className="card-block" style={{ marginBottom: 12 }}>
         <strong>Net & impôt</strong>
         <div className="grid2">
-          {field(`Taux ${taxLabel} (%)`, p.taxRate, (v) => set('taxRate', v), 'number')}
+          <div className="field"><label>Mode d'imposition</label>
+            <select value={p.taxMode || 'rate'} onChange={(e) => set('taxMode', e.target.value)}>
+              <option value="rate">Taux (%) saisi</option>
+              <option value="amount">Montant calculé{isMU ? ' (barème MRA)' : ''}</option>
+            </select>
+          </div>
           {field('Remboursement de frais (non soumis)', p.expenseReimbursement, (v) => set('expenseReimbursement', v), 'number')}
         </div>
+        {(p.taxMode || 'rate') === 'rate' ? (
+          <div className="grid2">
+            {field(`Taux ${taxLabel} (%)`, p.taxRate, (v) => set('taxRate', v), 'number')}
+            <div className="field" />
+          </div>
+        ) : (
+          <div>
+            <div className="grid2">
+              {field(`Montant ${taxLabel} retenu`, p.taxFixedAmount, (v) => set('taxFixedAmount', v), 'number')}
+              {field('Mensualités / an (13e mois…)', p.monthsPerYear ?? 12, (v) => set('monthsPerYear', v), 'number')}
+            </div>
+            {isMU && (
+              <>
+                <div className="grid2">
+                  {field('Abattements annuels EDF (personnes à charge…)', p.edfReliefs, (v) => set('edfReliefs', v), 'number')}
+                  <div className="field" style={{ display: 'flex', alignItems: 'flex-end' }}>
+                    <button className="btn" onClick={calcPaye} disabled={busy} style={{ width: '100%' }}>Calculer le PAYE (barème MRA)</button>
+                  </div>
+                </div>
+                {payeInfo && (
+                  <p className="muted" style={{ fontSize: 12, margin: '4px 0 0' }}>
+                    Émoluments annuels {money(payeInfo.annualEmoluments, cur)} − abattements {money(payeInfo.annualReliefs, cur)} = base {money(payeInfo.annualChargeable, cur)} → impôt annuel {money(payeInfo.annualTax, cur)} ({payeInfo.effectiveRate} % effectif) → retenue mensuelle {money(payeInfo.monthlyTax, cur)}.
+                  </p>
+                )}
+              </>
+            )}
+          </div>
+        )}
         <div style={{ textAlign: 'right', lineHeight: 1.8, marginTop: 6 }}>
           <div>Salaire brut : <strong>{m(t.grossTotal)}</strong></div>
           <div>Total cotisations salariales : <strong>− {m(t.totalEmployee)}</strong></div>

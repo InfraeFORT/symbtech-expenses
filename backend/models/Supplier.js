@@ -33,6 +33,7 @@ const BonusSchema = new Schema(
 
 const EmploymentSchema = new Schema(
   {
+    company: { type: String, default: null }, // société employeuse (nom)
     country: { type: String, default: null }, // FR | MU
     currency: { type: String, default: null },
     contractType: { type: String, default: null }, // CDI, CDD, …

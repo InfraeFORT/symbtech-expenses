@@ -2,7 +2,7 @@
 const express = require('express');
 const { connectDB } = require('../lib/db');
 const Payslip = require('../models/Payslip');
-const { defaultContributions, defaultContributionsMU, computeTotals, PMSS_DEFAULT } = require('../lib/payroll');
+const { defaultContributions, defaultContributionsMU, computeTotals, computePayeMU, PMSS_DEFAULT } = require('../lib/payroll');
 
 const router = express.Router();
 
@@ -13,7 +13,8 @@ async function ensureDB(res) {
 
 function applyBody(doc, b) {
   const top = ['company', 'country', 'currency', 'month', 'periodLabel', 'periodFrom', 'periodTo', 'paymentDate',
-    'baseSalary', 'workedHours', 'hourlyRate', 'pmss', 'nsfCeiling', 'csgThreshold', 'taxRate', 'expenseReimbursement', 'notes'];
+    'baseSalary', 'workedHours', 'hourlyRate', 'pmss', 'nsfCeiling', 'csgThreshold', 'taxRate',
+    'taxMode', 'taxFixedAmount', 'edfReliefs', 'monthsPerYear', 'expenseReimbursement', 'notes'];
   for (const f of top) if (b[f] !== undefined) doc[f] = b[f];
   if (b.employer !== undefined) doc.employer = b.employer;
   if (b.employee !== undefined) doc.employee = b.employee;
@@ -24,6 +25,14 @@ function applyBody(doc, b) {
 }
 
 // POST /payslips/default-contributions — modèle de cotisations (non persistant), France ou Maurice.
+// POST /payslips/compute-paye — PAYE mauricien calculé depuis le barème MRA.
+router.post('/compute-paye', (req, res) => {
+  const { monthlyGross, monthsPerYear, reliefs, brackets } = req.body || {};
+  try {
+    res.json(computePayeMU({ monthlyGross, monthsPerYear, reliefs, brackets }));
+  } catch (err) { res.status(400).json({ error: 'Calcul PAYE échoué', detail: err.message }); }
+});
+
 router.post('/default-contributions', async (req, res) => {
   const { brut, pmss, isCadre, country, nsfCeiling, csgThreshold } = req.body || {};
   const b = Number(brut) || 0;
