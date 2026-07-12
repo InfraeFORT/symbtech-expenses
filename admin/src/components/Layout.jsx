@@ -47,6 +47,25 @@ const NAV = [
   },
 ];
 
+// Élément de droits associé à chaque entrée de navigation.
+const RES_OF = {
+  companies: 'companies', clients: 'clients', suppliers: 'suppliers', products: 'products',
+  'supplier-contracts': 'supplier-contracts', charges: 'charges', 'recurring-purchases': 'recurring-purchases',
+  'fixed-assets': 'fixed-assets', payslips: 'payslips',
+  contracts: 'contracts', quotes: 'quotes', cra: 'cra', invoices: 'invoices',
+  ledger: 'ledger', bank: 'bank',
+  'report-balance': 'reports', 'report-pl': 'reports', 'report-cashflow': 'reports',
+  'sim-employee': 'simulations', 'sim-company': 'simulations',
+};
+
+const ADMIN_NAV = {
+  group: 'Administration',
+  items: [
+    { key: 'users', label: 'Utilisateurs' },
+    { key: 'groups', label: 'Groupes & droits' },
+  ],
+};
+
 const TITLES = {
   companies: 'Sociétés',
   clients: 'Clients',
@@ -68,18 +87,35 @@ const TITLES = {
   'report-cashflow': 'Tableau de flux de trésorerie',
   'sim-employee': 'Simulation impôt salarié',
   'sim-company': 'Simulation impôt société',
+  users: 'Utilisateurs',
+  groups: 'Groupes & droits',
+  account: 'Mon compte',
 };
 
 export default function Layout({ page, onNavigate, children }) {
-  const { signOut, user } = useAuth();
-  const [open, setOpen] = useState(() => NAV.reduce((acc, g) => { acc[g.group] = true; return acc; }, {}));
+  const { signOut, user, can, isAdmin } = useAuth();
+
+  // Navigation filtrée : on ne montre que ce que l'utilisateur peut lire.
+  const nav = React.useMemo(() => {
+    const groups = NAV
+      .map((g) => {
+        const items = g.items.filter((n) => (n.sublabel ? true : can(RES_OF[n.key] || n.key, 'read')));
+        // retire les sous-titres devenus orphelins
+        const cleaned = items.filter((n, i) => !n.sublabel || items.slice(i + 1).some((x) => !x.sublabel && !x.__stop));
+        return { ...g, items: cleaned };
+      })
+      .filter((g) => g.items.some((n) => !n.sublabel));
+    return isAdmin ? [...groups, ADMIN_NAV] : groups;
+  }, [isAdmin, user]);
+
+  const [open, setOpen] = useState(() => [...NAV, ADMIN_NAV].reduce((acc, g) => { acc[g.group] = true; return acc; }, {}));
   const toggle = (g) => setOpen((o) => ({ ...o, [g]: !o[g] }));
 
   return (
     <div className="app">
       <aside className="sidebar">
         <h1>Symbtech<br />Administration</h1>
-        {NAV.map((g) => (
+        {nav.map((g) => (
           <div key={g.group}>
             <button className="nav-group" onClick={() => toggle(g.group)}>
               <span>{g.group}</span>
@@ -104,9 +140,12 @@ export default function Layout({ page, onNavigate, children }) {
       <div className="main">
         <div className="topbar">
           <h2>{TITLES[page] || ''}</h2>
-          <button className="btn btn-ghost" onClick={signOut}>
-            {user?.name ? `${user.name} · ` : ''}Déconnexion
-          </button>
+          <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button className="btn btn-ghost" onClick={() => onNavigate('account')}>
+              {user?.name || 'Mon compte'}
+            </button>
+            <button className="btn btn-ghost" onClick={signOut}>Déconnexion</button>
+          </span>
         </div>
         <div className="content">{children}</div>
       </div>

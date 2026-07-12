@@ -17,15 +17,46 @@ import Cra from './pages/Cra';
 import ComingSoon from './pages/ComingSoon';
 import Simulations from './pages/Simulations';
 import Payslips from './pages/Payslips';
+import Admin from './pages/Admin';
+import Account from './pages/Account';
 
 function Shell() {
-  const { token } = useAuth();
+  const { token, loading, can, isAdmin } = useAuth();
   const [page, setPage] = useState('companies');
 
   if (!token) return <Login />;
+  if (loading) return <div style={{ padding: 32 }} className="muted">Chargement…</div>;
+
+  // Élément de droits requis pour la page affichée.
+  const RES_OF = {
+    companies: 'companies', clients: 'clients', suppliers: 'suppliers', products: 'products',
+    contracts: 'contracts', bank: 'bank', invoices: 'invoices', quotes: 'quotes', cra: 'cra',
+    ledger: 'ledger', charges: 'charges', payslips: 'payslips',
+    'sim-employee': 'simulations', 'sim-company': 'simulations',
+    'supplier-contracts': 'supplier-contracts', 'recurring-purchases': 'recurring-purchases',
+    'fixed-assets': 'fixed-assets',
+    'report-balance': 'reports', 'report-pl': 'reports', 'report-cashflow': 'reports',
+  };
+  const adminPage = page === 'users' || page === 'groups';
+  const allowed = page === 'account'
+    || (adminPage ? isAdmin : can(RES_OF[page] || page, 'read'));
+
+  if (!allowed) {
+    return (
+      <Layout page={page} onNavigate={setPage}>
+        <div className="card-block">
+          <strong>Accès refusé</strong>
+          <p className="muted" style={{ margin: '6px 0 0' }}>Vous n'avez pas les droits pour consulter cet élément. Contactez un administrateur.</p>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout page={page} onNavigate={setPage}>
+      {page === 'account' && <Account />}
+      {page === 'users' && <Admin tab="users" />}
+      {page === 'groups' && <Admin tab="groups" />}
       {page === 'companies' && <Companies />}
       {page === 'clients' && <Clients />}
       {page === 'suppliers' && <Suppliers />}

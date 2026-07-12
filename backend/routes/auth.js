@@ -3,6 +3,7 @@ const express = require('express');
 const { connectDB } = require('../lib/db');
 const { signToken, authRequired } = require('../lib/auth');
 const User = require('../models/User');
+const { effectivePermissions } = require('../lib/permissions');
 
 const router = express.Router();
 
@@ -29,6 +30,9 @@ router.post('/login', async (req, res) => {
     if (!user || !user.verifyPassword(password)) {
       return res.status(401).json({ error: 'Identifiants invalides.' });
     }
+    if (user.active === false) {
+      return res.status(403).json({ error: 'Compte désactivé.' });
+    }
     const token = signToken(user);
     res.json({
       token,
@@ -40,9 +44,39 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// GET /auth/me  (protégé)  ->  identité du porteur du token
-router.get('/me', authRequired, (req, res) => {
-  res.json({ user: req.user });
+// GET /auth/me  (protégé)  ->  identité + droits effectifs (union des groupes)
+router.get('/me', authRequired, async (req, res) => {
+  if (!(await ensureDB(res))) return;
+  try {
+    const perms = await effectivePermissions(req.user.id);
+    if (!perms) return res.status(403).json({ error: 'Compte désactivé ou introuvable.' });
+    res.json({ user: req.user, perms });
+  } catch (err) {
+    res.status(500).json({ error: 'Lecture des droits échouée', detail: err.message });
+  }
+});
+
+// POST /auth/password  { currentPassword, newPassword }  — l'utilisateur change son mot de passe.
+router.post('/password', authRequired, async (req, res) => {
+  if (!(await ensureDB(res))) return;
+  const { currentPassword, newPassword } = req.body || {};
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ error: 'Mot de passe actuel et nouveau mot de passe requis.' });
+  }
+  if (String(newPassword).length < 8) {
+    return res.status(400).json({ error: 'Nouveau mot de passe : 8 caractères minimum.' });
+  }
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user || !user.verifyPassword(String(currentPassword))) {
+      return res.status(401).json({ error: 'Mot de passe actuel incorrect.' });
+    }
+    user.setPassword(String(newPassword));
+    await user.save();
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Changement de mot de passe échoué', detail: err.message });
+  }
 });
 
 module.exports = router;

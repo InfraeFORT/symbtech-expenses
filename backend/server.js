@@ -14,8 +14,13 @@ const accountingRouter = require('./routes/accounting');
 const ledgerRouter = require('./routes/ledger');
 const payslipsRouter = require('./routes/payslips');
 const simulationsRouter = require('./routes/simulations');
+const adminRouter = require('./routes/admin');
 const { connectDB } = require('./lib/db');
 const { authRequired } = require('./lib/auth');
+const { loadPerms, requirePerm, requireAdmin, ensureBootstrap } = require('./lib/permissions');
+
+// Protection d'une route : authentification + droits (lecture/écriture) sur un élément.
+const guard = (resource) => [authRequired, loadPerms, requirePerm(resource)];
 
 const app = express();
 
@@ -32,22 +37,23 @@ app.use(express.json({ limit: '1mb' }));
 
 app.get('/health', (req, res) => res.json({ ok: true, service: 'symbtech-expenses-ocr' }));
 app.use('/auth', authRouter);
-app.use('/expenses', authRequired, expensesRouter);
-app.use('/companies', authRequired, companiesRouter);
-app.use('/clients', authRequired, clientsRouter);
-app.use('/suppliers', authRequired, suppliersRouter);
-app.use('/products', authRequired, productsRouter);
-app.use('/contracts', authRequired, contractsRouter);
-app.use('/avenants', authRequired, avenantsRouter);
-app.use('/orders', authRequired, ordersRouter);
-app.use('/bank', authRequired, bankRouter);
-app.use('/invoices', authRequired, invoicesRouter);
-app.use('/quotes', authRequired, quotesRouter);
-app.use('/cra', authRequired, craRouter);
-app.use('/accounting', authRequired, accountingRouter);
-app.use('/ledger', authRequired, ledgerRouter);
-app.use('/payslips', authRequired, payslipsRouter);
-app.use('/simulations', authRequired, simulationsRouter);
+app.use('/expenses', guard('charges'), expensesRouter);
+app.use('/companies', guard('companies'), companiesRouter);
+app.use('/clients', guard('clients'), clientsRouter);
+app.use('/suppliers', guard('suppliers'), suppliersRouter);
+app.use('/products', guard('products'), productsRouter);
+app.use('/contracts', guard('contracts'), contractsRouter);
+app.use('/avenants', guard('contracts'), avenantsRouter);
+app.use('/orders', guard('orders'), ordersRouter);
+app.use('/bank', guard('bank'), bankRouter);
+app.use('/invoices', guard('invoices'), invoicesRouter);
+app.use('/quotes', guard('quotes'), quotesRouter);
+app.use('/cra', guard('cra'), craRouter);
+app.use('/accounting', guard('ledger'), accountingRouter);
+app.use('/ledger', guard('ledger'), ledgerRouter);
+app.use('/payslips', guard('payslips'), payslipsRouter);
+app.use('/simulations', guard('simulations'), simulationsRouter);
+app.use('/admin', authRequired, loadPerms, requireAdmin, adminRouter);
 
 const PORT = process.env.PORT || 4000;
 
@@ -61,8 +67,8 @@ if (!process.env.JWT_SECRET) {
 // Tentative de connexion au démarrage : pratique pour repérer un souci de suite,
 // mais NON bloquante — le serveur démarre quand même (la route OCR n'a pas besoin
 // de la base, et les routes base réessaient la connexion au vol).
-connectDB().catch((err) =>
-  console.warn('⚠  MongoDB non connecté au démarrage :', err.message)
-);
+connectDB()
+  .then(() => ensureBootstrap().catch((e) => console.warn('⚠  Amorçage des droits :', e.message)))
+  .catch((err) => console.warn('⚠  MongoDB non connecté au démarrage :', err.message));
 
 app.listen(PORT, () => console.log(`Service dépenses en écoute sur :${PORT}`));

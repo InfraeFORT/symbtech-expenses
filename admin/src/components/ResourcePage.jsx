@@ -5,7 +5,8 @@ import { listResource, createResource, updateResource, deleteResource } from '..
 import Modal from './Modal';
 
 export default function ResourcePage({ resource, singular, columns, emptyItem, FormFields }) {
-  const { token } = useAuth();
+  const { token, can } = useAuth();
+  const canWrite = can(resource, 'write'); // lecture seule si pas de droit d'écriture
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -68,10 +69,13 @@ export default function ResourcePage({ resource, singular, columns, emptyItem, F
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
-        <button className="btn btn-primary" onClick={() => setDraft({ ...emptyItem })}>
-          + Nouveau {singular}
-        </button>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <span className="muted" style={{ fontSize: 13 }}>{canWrite ? '' : 'Lecture seule'}</span>
+        {canWrite && (
+          <button className="btn btn-primary" onClick={() => setDraft({ ...emptyItem })}>
+            + Nouveau {singular}
+          </button>
+        )}
       </div>
 
       {loading ? (
@@ -90,7 +94,7 @@ export default function ResourcePage({ resource, singular, columns, emptyItem, F
           <tbody>
             {items.length === 0 ? (
               <tr>
-                <td colSpan={columns.length} className="muted">Aucun élément. Cliquez « + Nouveau ».</td>
+                <td colSpan={columns.length} className="muted">Aucun élément.{canWrite ? ' Cliquez « + Nouveau ».' : ''}</td>
               </tr>
             ) : (
               items.map((it) => (
@@ -106,16 +110,18 @@ export default function ResourcePage({ resource, singular, columns, emptyItem, F
       )}
 
       {draft && (
-        <Modal title={draft._id ? `Modifier ${singular}` : `Nouveau ${singular}`} onClose={close}>
+        <Modal title={canWrite ? (draft._id ? `Modifier ${singular}` : `Nouveau ${singular}`) : `${singular} (lecture seule)`} onClose={close}>
           <FormFields draft={draft} set={set} />
           <div className="modal-actions">
-            {draft._id && (
+            {canWrite && draft._id && (
               <button className="btn btn-danger" onClick={remove} disabled={busy}>Supprimer</button>
             )}
-            <button className="btn" onClick={close} disabled={busy}>Annuler</button>
-            <button className="btn btn-primary" onClick={save} disabled={busy}>
-              {busy ? '…' : 'Enregistrer'}
-            </button>
+            <button className="btn" onClick={close} disabled={busy}>{canWrite ? 'Annuler' : 'Fermer'}</button>
+            {canWrite && (
+              <button className="btn btn-primary" onClick={save} disabled={busy}>
+                {busy ? '…' : 'Enregistrer'}
+              </button>
+            )}
           </div>
         </Modal>
       )}

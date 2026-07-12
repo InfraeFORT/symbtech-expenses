@@ -142,6 +142,7 @@ Comme pour e-FORT, la doc est éclatée en fichiers `Context-*.md` spécialisés
 | `Context-Paie.md` | Fiches de paie France & Maurice : logique de paie, cotisations, bulletin, impression A4, logo. |
 | `Context-Referentiels.md` | Ajouts Société (paie + logo) et Fournisseur (personne physique + salarié : contrat & rémunération). |
 | `Context-Simulations.md` | Simulations d'impôt salarié & société : barème progressif, Fair Share, pré-remplissage réel + prévisions. |
+| `Context-Droits.md` | Utilisateurs, groupes et droits : cumul au plus permissif, perimetre societe, garde-fous serveur. |
 
 ---
 
@@ -283,6 +284,10 @@ L'**OCR ne pré-remplit que** titre / date / montant / TVA / devise / (type). Le
 
 **Fait (slice 25)** : **Simulations d'impôt** (salarié & société) sous Record to Report — modèle sauvegardable (titre, pays, société/personne, **période fiscale**, notes) ; **période auto** (FR année civile, MU 1er juillet→30 juin) ; **pré-remplir depuis le réel** (bulletins/factures/charges + prévisions contrats proratisés & masse salariale) ; lignes éditables ; **barème progressif éditable** (FR/MU) ; **Fair Share Contribution** (MU) ; calcul base/impôt/Fair Share/impôt total/taux effectif/reste à payer. Voir Context-Simulations.md.
 
+**Fait (slice 26)** : Compléments paie & documents — **salarié rattaché à une société** (`employment.company`, sélecteur en tête du bloc Contrat & rémunération) : la masse salariale prévisionnelle des simulations société ne compte plus que les salariés de l'entité (mensualités contractuelles incluses) ; **calcul automatique du PAYE mauricien** dans le bulletin (`computePayeMU`, barème MRA 0/10/20 sur les émoluments annuels moins les abattements EDF, retenue mensuelle = impôt annuel / 12 ; mode d'imposition « taux saisi » ou « montant calculé ») ; **logo de la société** en en-tête d'impression des **factures** et **devis** (même mécanisme que le bulletin).
+
+**Fait (slice 27)** : **Utilisateurs, groupes et droits** — les droits (aucun / lecture / écriture) sont portés par des **groupes**, un utilisateur cumule ceux de ses groupes (**le plus permissif l'emporte**), avec **périmètre société** (toutes ou sélection). Contrôle **côté serveur** sur chaque route (lecture pour GET, écriture pour POST/PATCH/DELETE, filtrage des listes par société) et **côté admin** (navigation filtrée, référentiels en lecture seule). Rubrique **Administration** (Utilisateurs, Groupes & droits) réservée aux administrateurs ; création de comptes avec mot de passe initial, réinitialisation par l'admin, changement par l'utilisateur via **Mon compte**. **Amorçage automatique** : groupe « Administrateurs » créé au premier démarrage et comptes existants rattachés (pas de verrouillage possible). Voir Context-Droits.md. Également : **favicon** Symbtech (favicon.ico + PNG 16/32 + icône Apple dans `admin/public/`).
+
 **Suite** : (feuille de route terminee — option : factures fournisseurs). import historique de factures (fournisseurs ou ventes ?). Phase 2 lien facture→commande + report des mentions ; import historique factures ; CRA→facture. import historique factures (fournisseurs ou ventes ?), comptes rendus d activité → facture. factures (historique import PDF/Excel), devis, comptes rendus d'activité → facture. (b) pièces jointes contrats/BC (upload S3) ; (c) relevés + rapprochement ; (d) facturation ; (e) appli large embarquant Expenses.
 
 ---
@@ -306,6 +311,22 @@ L'**OCR ne pré-remplit que** titre / date / montant / TVA / devise / (type). Le
 - `/health` renvoie souvent un **502 transitoire** juste après `pm2 restart` (uptime 0 s) : ce n'est pas une panne, confirmer avec `curl -s -o /dev/null -w "%{http_code}\n" https://expenses.symbtech.net/health`.
 - Connexion Mongo via `lib/db` `connectDB()` (fixe le dbName `symbtech-expenses`) ; un `mongoose.connect(URI)` brut tombe sur la base `test` (vide).
 - Reset mot de passe admin : script SSH → EC2 → `connectDB()` → collection `users`, champ `passwordHash` (bcrypt).
+
+---
+
+## 9quinquies. Reprise — droits & compléments (12 juillet 2026)
+
+**Livré** : rattachement salarié→société, PAYE automatique (barème MRA), logo sur factures/devis (slice 26) ; module **Utilisateurs, groupes et droits** + favicon (slice 27).
+
+**Sécurité — à savoir** :
+- Un utilisateur **sans groupe n'a aucun droit**. Le groupe « Administrateurs » est créé automatiquement au premier démarrage et récupère les comptes existants.
+- La vraie barrière est **côté serveur** (`guard(resource)` sur chaque route) ; l'interface ne fait que masquer ce qui n'est pas autorisé.
+- Le cloisonnement société filtre les listes et bloque les écritures hors périmètre, en s'appuyant sur les champs `company` / `issuerCompany` / `companyName`.
+
+**Reste à faire** :
+- Masquer les boutons d'écriture page par page sur les écrans spécifiques (Factures, Devis, Paie, Banque, CRA) — aujourd'hui le serveur refuse (403) mais les boutons restent visibles.
+- Modules encore en « à construire » : Contrats fournisseurs, Achats récurrents, Achats immobilisés, rapports Bilan / Compte de résultat / Flux de trésorerie.
+- Sauvegardes Atlas (seul vrai point de résilience restant sur M0).
 
 ---
 

@@ -249,3 +249,19 @@ export const simulationPrefill = (b, t) => apiRequest('/simulations/prefill', { 
 
 // --- PAYE calcule (bareme MRA) ---
 export const computePaye = (b, t) => apiRequest('/payslips/compute-paye', { method: 'POST', token: t, body: b });
+
+// --- Compte & droits ---
+export const me = (token) => apiRequest('/auth/me', { token });
+export const changeMyPassword = (body, token) => apiRequest('/auth/password', { method: 'POST', token, body });
+
+// --- Administration : utilisateurs & groupes ---
+export const listAdminResources = (token) => apiRequest('/admin/resources', { token });
+export const listGroups = (token) => apiRequest('/admin/groups', { token });
+export const createGroup = (body, token) => apiRequest('/admin/groups', { method: 'POST', token, body });
+export const updateGroup = (id, body, token) => apiRequest('/admin/groups/' + id, { method: 'PATCH', token, body });
+export const deleteGroup = (id, token) => apiRequest('/admin/groups/' + id, { method: 'DELETE', token });
+export const listUsers = (token) => apiRequest('/admin/users', { token });
+export const createUser = (body, token) => apiRequest('/admin/users', { method: 'POST', token, body });
+export const updateUser = (id, body, token) => apiRequest('/admin/users/' + id, { method: 'PATCH', token, body });
+export const deleteUser = (id, token) => apiRequest('/admin/users/' + id, { method: 'DELETE', token });
+export const resetUserPassword = (id, password, token) => apiRequest('/admin/users/' + id + '/password', { method: 'POST', token, body: { password } });
